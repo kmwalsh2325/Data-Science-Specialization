@@ -1,0 +1,60 @@
+Storm Analysis 
+===============
+
+**Synopsis:**
+
+### Data Processing
+
+```{r, cache=TRUE}
+library(data.table)
+datadir <- "~/Coursera/Data Science Specialization/Reproducible Research/Project 2/repdata-data-StormData.csv"
+dataset <- data.table(read.csv(datadir, header = TRUE))
+```
+
+### Results
+
+#### Across the United States, which types of events (as indicated in the `EVTYPE` variable) are most harmful with respect to population health?
+
+The columns associated with health damage are `FATALITIES` and `INJURIES` so we will add up the number of each of those columns with respect to the event type `EVTYPE`.
+
+We look at the top five greatest health damages and compare.
+
+```{r, cache=TRUE}
+library(lattice)
+
+p1data <- dataset[, list(healthdmg = sum(FATALITIES, INJURIES, na.rm=TRUE)), by = EVTYPE]
+p1data <- p1data[order(-healthdmg)][1:5]
+barchart(p1data[, healthdmg] ~ p1data[, EVTYPE], xlab = "Event Type", ylab = "Number of Casualties", main = "Population Casualties by Event Type")
+```
+
+It is clear that tornadoes are the most impacting to health damages.
+
+
+#### Across the United States, which types of events have the greatest economic consequences?
+
+Property damage is calculated by `PROPDMG` * `PROPDMGEXP` however there are unknown exponents to multiply by as seen by the following:
+```{r}
+dataset[, unique(PROPDMGEXP)]
+dataset[, .N, keyby = PROPDMGEXP]
+```
+
+Clearly some of these are nonsense and belong to an untidy dataset. Because there is a relatively small set in the untidy exponents we will restrict to the ("", "h", "H", "k", "K", "m", "M", "B") cases.
+
+```{r, cache=TRUE}
+dataset <- dataset[PROPDMGEXP %in% c("", "h", "H", "k", "K", "m", "M", "B")]
+```
+
+Now we convert those exponents into the appropriate magnitudes and can then calculate the total property damage.
+
+```{r, cache=TRUE}
+expconversion <- data.table(
+  PROPDMGEXP = c("", "h", "H", "k", "K", "m", "M", "B"), 
+  EXPMAG = c(1, 100, 100, 1000, 1000, 1000000, 1000000, 1000000000))
+p2data <- merge(dataset, expconversion, by = "PROPDMGEXP", all.x = TRUE)
+p2data[, PROPDMGEST := PROPDMG * EXPMAG]
+p2data <- p2data[, list(PROPDMGEST = sum(PROPDMGEST, na.rm=TRUE)), by = EVTYPE]
+p2data <- p2data[order(-PROPDMGEST)][1:5]
+barchart(p2data[, PROPDMGEST] ~ p2data[, EVTYPE], xlab = "Event Type", ylab = "Damage Estimates ($)", main = "Damage Estimates by Event Type")
+```
+
+We see here that flooding is the most damaging to property costs.
